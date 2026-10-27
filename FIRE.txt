@@ -1,0 +1,35 @@
+# FIRE分析流程
+source /Fiberseq/.bashrc 
+ft add-nucleosomes A_yamamai_L5M.bam \
+A_yamamai_L5M.m6a.bam  
+pbmm2 align \
+ --preset HIFI \
+ tiancan.genomic.fa \
+A_yamamai_L5M.m6a.bam  \
+ --sample A_yamamai_L5M \
+ -j 10 \
+ A_yamamai_L5M.aligned.tmp.bam 
+samtools sort -@ 10 A_yamamai_L5M.aligned.tmp.bam  -O BAM -o A_yamamai_L5M.aligned.sort.bam  
+echo -e "sample\tbam\nA_yamamai_L5M\tA_yamamai_L5M.aligned.sort.bam  " >A_yamamai_L5M_config.tbl
+echo -e "ref: tiancan.genomic.fa # path to a reference fasta  
+ref_name: tiancan # name of the reference genome, ideally use a ucsc name  
+manifest: A_yamamai_L5M_config.tbl # table with samples to process" >A_yamamai_L5M_config.yaml 
+fire --configfile A_yamamai_L5M_config.yaml --cores 10 --use-conda --conda-frontend conda  
+
+# 差异分析：
+Rscript fisher_groups.R compare1_merge_cov.bed  compare1_fisher.result.xls  
+
+# deepTools绘制热图：
+computeMatrix reference-point --referencePoint TSS -p 15 -b 3000 -a 3000 \
+ -R gene_tss.bed \
+ -S fire.coverage.bw \
+ --skipZeros --binSize 50 --missingDataAsZero \
+ -o A_yamamai_L5M_TSS.gz 
+ 
+plotHeatmap -m A_yamamai_L5M_TSS.gz  -out A_yamamai_L5M_Heatmap.png 
+
+# homer分析：
+perl /Homer/v5.1/bin/findMotifsGenome.pl L5M_for_homer.bed  Antheraea_yamamai L5M  -len 8,10,12 -p 10
+
+# fimo分析：
+/MEME/meme-5.5.7/meme/bin/fimo --oc L5M_fimo_out --verbosity 1 motif_db_ALL.meme L5M_peak.bed.fasta
